@@ -134,9 +134,26 @@ See `federalist/` for the full canon.
 
 ---
 
+## Repository
+
+| | |
+|---|---|
+| **URL** | https://github.com/deiasolutions/simdecisions |
+| **Visibility** | Public |
+| **Branch** | `main` (protected) |
+| **Config** | [.github/REPO-CONFIG.md](.github/REPO-CONFIG.md) |
+
+### Contribution Workflow
+
+All changes go through PR with tribunal review (3 Q33N judges). See:
+- `specs/BOK-REVIEW-001-GitHub-Tribunal-Pattern.md` — Review process
+- `specs/SCALING-001-Growth-Governance.md` — Scaling roadmap
+
+---
+
 ## License
 
-TBD — Private during development.
+TBD — Open source license pending.
 
 ---
 

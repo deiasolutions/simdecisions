@@ -26,3 +26,5 @@
 {"ts": "2026-02-05T09:10:00Z", "bee": "BEE-001", "event": "blocked", "task": "repo-setup", "msg": "Branch protection requires GitHub Pro or public repo - private repos on free tier cannot use branch protection"}
 {"ts": "2026-02-05T09:15:00Z", "bee": "BEE-001", "event": "progress", "task": "repo-setup", "msg": "Made repo public per Q33N approval"}
 {"ts": "2026-02-05T09:16:00Z", "bee": "BEE-001", "event": "task_completed", "task": "repo-setup", "msg": "Branch protection enabled: PRs required, stale reviews dismissed, no direct pushes to main"}
+{"ts": "2026-02-05T09:25:00Z", "bee": "BEE-001", "event": "progress", "task": "documentation", "msg": "Created .github/REPO-CONFIG.md documenting repo visibility, branch protection, contribution workflow"}
+{"ts": "2026-02-05T09:26:00Z", "bee": "BEE-001", "event": "progress", "task": "documentation", "msg": "Updated README.md with Repository section linking to REPO-CONFIG.md"}
