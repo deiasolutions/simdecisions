@@ -20,3 +20,7 @@
 {"ts": "2026-02-04T18:55:00Z", "bee": "BEE-001", "event": "progress", "task": "knowledge-spec", "msg": "Created ADR-005-Dual-Publish-Knowledge.md - GitHub for bots, G-Drive for humans, Discord for notifications"}
 {"ts": "2026-02-04T19:15:00Z", "bee": "BEE-001", "event": "progress", "task": "repo-setup", "msg": "Pushed simdecisions repo to github.com/deiasolutions/simdecisions"}
 {"ts": "2026-02-04T19:30:00Z", "bee": "BEE-001", "event": "progress", "task": "tribunal-spec", "msg": "Updated BOK-REVIEW-001 v1.1.0 - Added Section 15: Author-Conditional Workflow (Dave auto-merge, others require approval)"}
+{"ts": "2026-02-04T19:45:00Z", "bee": "BEE-001", "event": "progress", "task": "scaling-spec", "msg": "Created specs/README.md (organization) and SCALING-001-Growth-Governance.md (5-level scaling roadmap)"}
+{"ts": "2026-02-05T09:00:00Z", "bee": "BEE-001", "event": "session_resumed", "msg": "Context recovery - continuing from crash. Resuming git setup tasks."}
+{"ts": "2026-02-05T09:05:00Z", "bee": "BEE-001", "event": "progress", "task": "repo-setup", "msg": "Pushed merged main branch, deleted master branch (local+remote), set main as default"}
+{"ts": "2026-02-05T09:10:00Z", "bee": "BEE-001", "event": "blocked", "task": "repo-setup", "msg": "Branch protection requires GitHub Pro or public repo - private repos on free tier cannot use branch protection"}
