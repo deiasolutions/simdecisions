@@ -9,7 +9,7 @@
 
 ## Summary
 
-A central coordination server that replaces (or supplements) file-based hive communication with real-time, API-driven orchestration. Provides task queuing, progress tracking, bee-to-bee messaging, human dashboards, and immutable audit logging.
+A central coordination server designed to seamlessly integrate **both real-time, API-driven orchestration AND robust file-driven communication** for the hive. File-based interactions are a **first-class citizen** alongside the API + WebSocket interface. Provides task queuing, progress tracking, bee-to-bee messaging, human dashboards, and immutable audit logging — ensuring all bees can communicate effectively via their preferred method.
 
 ---
 
@@ -46,18 +46,18 @@ DEIA coordination uses file-based communication:
 4. Bee-to-bee messaging with rate limits
 5. Approval workflows via API
 6. Immutable audit log
-7. **File-based fallback must remain supported**
+7. **File-based communication as first-class mode**
 
 ---
 
 ## Decision
 
-Build a **Hive Control Plane** server with dual-mode communication:
+Build a **Hive Control Plane** server with **first-class support for both communication modes**:
 
-- **Primary:** API + WebSocket (real-time)
-- **Fallback:** File-based (existing `.deia/hive/` structure)
+- **API-Driven:** Real-time orchestration via REST API + WebSocket
+- **File-Driven:** Communication via direct manipulation of `.deia/hive/` files
 
-Bees can use either mode. The control plane syncs between them.
+Both modes are equal peers. Bees choose their preferred method. The control plane ensures seamless, bidirectional synchronization and maintains unified state across both paradigms.
 
 ---
 
@@ -276,9 +276,9 @@ ws://api.example.com/ws?token={api_key}
 
 ---
 
-## Dual-Mode Communication
+## Communication Modes: API-Driven and File-Driven
 
-### Mode 1: API-First (Primary)
+### API-Driven Communication
 
 ```
 Bee                          Control Plane
@@ -292,7 +292,7 @@ Bee                          Control Plane
  │◀──────────────────────────────│
 ```
 
-### Mode 2: File-Based (Fallback)
+### File-Driven Communication
 
 ```
 Bee                          Control Plane
@@ -312,7 +312,168 @@ Bee                          Control Plane
 |--------|--------|---------|
 | API write | File system | Async (within 5s) |
 | File write | Database | File watcher (within 5s) |
-| Conflict | Last-write-wins | With audit log entry |
+| Conflict | **LLM Conflict Resolver** | See below |
+
+---
+
+## LLM Conflict Resolution
+
+When both API and file writes occur within the sync window, an LLM resolves the conflict intelligently rather than blindly choosing "last write wins."
+
+### Conflict Resolution Flow
+
+```
+Conflict detected (API + file both changed within sync window)
+                    │
+                    ▼
+           ┌───────────────────┐
+           │ Auto-Resolvable?  │
+           │                   │
+           │ - Identical?      │──▶ Yes ──▶ No conflict
+           │ - Superset?       │──▶ Yes ──▶ Take superset
+           │ - Disjoint fields?│──▶ Yes ──▶ Auto-merge
+           └─────────┬─────────┘
+                     │ No
+                     ▼
+         ┌─────────────────────┐
+         │ LLM Conflict Resolver│
+         │                      │
+         │ Inputs:              │
+         │ - Version A (API)    │
+         │ - Version B (file)   │
+         │ - Entity schema      │
+         │ - Relevant specs     │
+         │ - Process rules      │
+         └──────────┬───────────┘
+                    │
+        ┌───────────┼───────────┐
+        ▼           ▼           ▼
+   ┌─────────┐ ┌─────────┐ ┌─────────┐
+   │ Merge   │ │ Pick A  │ │ Escalate│
+   │ (smart) │ │ or B    │ │ (human) │
+   └─────────┘ └─────────┘ └─────────┘
+```
+
+### Resolution Strategies
+
+| Scenario | Resolution | Method |
+|----------|------------|--------|
+| Identical content | No conflict | Auto |
+| One is strict superset | Take superset | Auto |
+| Different fields changed | Merge both | Auto |
+| Same field, different values | LLM decides | LLM |
+| Semantic conflict detected | LLM analyzes | LLM |
+| Violation detected | Escalate | Human |
+| LLM confidence < 80% | Escalate | Human |
+
+### Violation Checking
+
+The LLM checks for process and spec violations:
+
+```yaml
+conflict_resolution:
+  version_a: { status: "in_progress", assigned_to: "BEE-001" }
+  version_b: { status: "completed", assigned_to: "BEE-002" }
+
+  llm_analysis:
+    conflict_type: "state_and_assignment"
+    violations_detected:
+      - rule: "PROCESS-0002"
+        detail: "Task claimed by BEE-001 but BEE-002 attempting completion"
+    resolution: "escalate"
+    reason: "Potential task ownership violation - human review required"
+```
+
+### Model Selection
+
+| Tier | Model | Use Case |
+|------|-------|----------|
+| **Local (preferred)** | Ollama (Llama 3, Mistral, etc.) | Cost-free, private, low-latency |
+| **Cloud (fallback)** | Claude Haiku / GPT-4o-mini | When local unavailable or complex |
+| **Escalation** | Human | When LLM uncertain or violation detected |
+
+### Ollama Integration
+
+```python
+# Conflict resolver with Ollama preference
+class ConflictResolver:
+    def __init__(self):
+        self.ollama_url = os.getenv("OLLAMA_URL", "http://localhost:11434")
+        self.ollama_model = os.getenv("OLLAMA_MODEL", "llama3")
+        self.fallback_model = "claude-3-haiku"  # Cloud fallback
+
+    async def resolve(self, version_a: dict, version_b: dict, context: dict) -> Resolution:
+        # Try auto-resolution first
+        auto = self.try_auto_resolve(version_a, version_b)
+        if auto:
+            return auto
+
+        # Try Ollama (local, free)
+        try:
+            return await self.resolve_with_ollama(version_a, version_b, context)
+        except OllamaUnavailable:
+            # Fall back to cloud
+            return await self.resolve_with_cloud(version_a, version_b, context)
+
+    async def resolve_with_ollama(self, a, b, ctx) -> Resolution:
+        prompt = self.build_conflict_prompt(a, b, ctx)
+        response = await ollama.chat(
+            model=self.ollama_model,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return self.parse_resolution(response)
+```
+
+### Configuration
+
+```yaml
+# config/conflict_resolution.yaml
+conflict_resolution:
+  enabled: true
+
+  auto_resolve:
+    identical: true
+    superset: true
+    disjoint_fields: true
+
+  llm:
+    primary: "ollama"
+    fallback: "claude-haiku"
+    confidence_threshold: 0.8
+
+  ollama:
+    url: "${OLLAMA_URL:-http://localhost:11434}"
+    model: "${OLLAMA_MODEL:-llama3}"
+    timeout_seconds: 30
+
+  escalation:
+    on_violation: true
+    on_low_confidence: true
+    notify_channel: "#conflicts"
+```
+
+### Audit Trail
+
+All conflict resolutions are logged:
+
+```sql
+INSERT INTO audit_log (event_type, actor, entity_type, entity_id, details)
+VALUES (
+    'conflict_resolved',
+    'system:conflict_resolver',
+    'task',
+    'task-uuid-here',
+    '{
+        "version_a": {...},
+        "version_b": {...},
+        "resolution": "merge",
+        "model_used": "ollama:llama3",
+        "confidence": 0.92,
+        "violations_checked": ["PROCESS-0002", "PROCESS-0004"],
+        "violations_found": []
+    }'
+);
+```
 
 ---
 
@@ -347,9 +508,26 @@ Bee                          Control Plane
 | Feature | Implementation |
 |---------|----------------|
 | Human login | OAuth2 via NextAuth (GitHub, Google) |
-| Bee auth | API keys (scoped, rotatable) |
+| Bee auth | API keys (scoped, rotatable, revocable) |
 | RBAC | Roles: admin, human, bee, readonly |
 | Rate limiting | Per-key, per-endpoint |
+
+### API Key Management
+
+| Operation | Endpoint | Who Can |
+|-----------|----------|---------|
+| Generate key | `POST /api/keys` | Admin |
+| List keys | `GET /api/keys` | Admin |
+| Rotate key | `POST /api/keys/{id}/rotate` | Admin, Key owner |
+| Revoke key | `DELETE /api/keys/{id}` | Admin |
+| View key metadata | `GET /api/keys/{id}` | Admin, Key owner |
+
+**Key properties:**
+- Scoped to specific bee ID
+- Optional expiration date
+- Optional IP allowlist
+- Usage tracked (last used, call count)
+- Hashed in database (plaintext shown once on creation)
 
 ### Data Protection
 
@@ -408,16 +586,18 @@ pending ──▶ claimed ──▶ in_progress ──▶ completed
 
 ---
 
-## File-Based Fallback Details
+## File-Driven Communication Details
 
-### Why Keep It?
+### Rationale for File-Driven as Primary Mode
 
 | Reason | Explanation |
 |--------|-------------|
-| Resilience | Server down? Bees can still work via files |
-| Debugging | Files are human-readable, git-friendly |
-| Onboarding | New bees don't need API integration immediately |
-| Simplicity | Some use cases don't need real-time |
+| **Resilience** | Control Plane down? Bees continue working via files |
+| **Git-native** | Files are version-controlled, diffable, reviewable |
+| **CLI-friendly** | Agents can use standard file tools (cat, echo, etc.) |
+| **Debuggable** | Human-readable, no special tools needed |
+| **Onboarding** | New bees don't need API integration immediately |
+| **Local-first** | Works offline, syncs when connected |
 
 ### File Structure (Unchanged)
 
@@ -439,7 +619,17 @@ pending ──▶ claimed ──▶ in_progress ──▶ completed
 | Task created via API | File written to `tasks/` |
 | Task file created manually | Parsed, added to DB |
 | Response file written | Parsed, logged to audit |
-| Conflict (both modified) | Last-write-wins, conflict logged |
+| Conflict (both modified) | **LLM Conflict Resolver** decides (see above) |
+
+### Migration of Existing Files
+
+On initial deployment, existing `.deia/hive/` files are ingested:
+
+1. Scan all task files → create DB records
+2. Scan all response files → create DB records + audit entries
+3. Scan bot-logs → import into audit_log
+4. Mark migration complete in DB
+5. Enable bidirectional sync
 
 ---
 
@@ -493,13 +683,23 @@ pending ──▶ claimed ──▶ in_progress ──▶ completed
 
 ---
 
+## Resolved Questions
+
+| Question | Decision | Rationale |
+|----------|----------|-----------|
+| Sync frequency | 5s for file-sync; API is real-time | File-sync doesn't need sub-second; API handles real-time |
+| Conflict resolution | **LLM Conflict Resolver** (Ollama preferred) | Smarter than last-write-wins; checks for violations |
+| File watcher deployment | **Separate Railway worker** | Better resilience, resource isolation |
+| API versioning | **Yes, `/api/v1/` from start** | Standard practice, easier to evolve |
+| Multi-tenant | Design for it (add `workspace_id`) | Easier to add now than retrofit later |
+
+---
+
 ## Open Questions
 
-1. **Sync frequency:** 5s acceptable? Or need sub-second?
-2. **Conflict resolution:** Last-write-wins OK? Or need merge logic?
-3. **File watcher deployment:** Same Railway service or separate?
-4. **API versioning:** `/api/v1/` from start?
-5. **Multi-tenant:** Single hive or workspace isolation now?
+1. **Ollama model selection:** Which model for conflict resolution? (Llama 3, Mistral, CodeLlama?)
+2. **Confidence threshold:** 80% OK for escalation trigger?
+3. **Rollback strategy:** How to recover from bad sync state?
 
 ---
 
@@ -508,6 +708,7 @@ pending ──▶ claimed ──▶ in_progress ──▶ completed
 - `specs/dave/inputs/2026-02-05-PLATFORM-ARCHITECTURE-PATHS.md` — Original input
 - `specs/ADR-004-GDrive-Coordination-Layer.md` — G-Drive integration
 - `specs/ADR-005-Dual-Publish-Knowledge.md` — Dual-publish pattern
+- `specs/ADR-006-Hive-Control-Plane_feedback_gemini.md` — Gemini review feedback
 - `.deia/hive-coordination-rules.md` — Current file-based rules
 - `specs/hive_comms_spec.md` — Scribe input contract
 
@@ -517,8 +718,9 @@ pending ──▶ claimed ──▶ in_progress ──▶ completed
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 0.2.0 | 2026-02-05 | Applied Gemini feedback: file-driven as first-class, LLM conflict resolution with Ollama, resolved open questions |
 | 0.1.0 | 2026-02-05 | Initial draft for review |
 
 ---
 
-*"Real-time when you can, files when you must."*
+*"Real-time when you can, files when you must. Smart merge when they collide."*
