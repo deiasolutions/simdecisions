@@ -175,36 +175,98 @@ These are the differentiators. Any path must support these natively or via exten
 
 ---
 
+## Infrastructure Constraints (Q33N Input)
+
+| Layer | Platform | Notes |
+|-------|----------|-------|
+| **Frontend** | Vercel | Next.js, existing server space |
+| **Backend** | Railway | API server, existing server space |
+| **Database** | TBD | Railway Postgres? Supabase? |
+| **Auth** | TBD | Depends on path chosen |
+
+**Scaling requirement:** Eventually needs federation/interop. Not day-1, but architecture must not preclude it.
+
+---
+
 ## Questions to Resolve
 
-1. **Do we need federation?** (Matrix wins if yes)
+1. ~~**Do we need federation?**~~ → Yes, eventually. Architecture must allow it.
 2. **Is enterprise SSO a near-term requirement?** (Keycloak wins if yes)
 3. **How fast do we need first working version?** (Supabase wins if "now")
 4. **Will we outgrow Supabase?** (Probably yes, but migration is possible)
-5. **Do we have ops capacity for Keycloak/Matrix?** (Honest assessment needed)
+5. ~~**Do we have ops capacity for Keycloak/Matrix?**~~ → Railway handles ops
 
 ---
 
 ## Recommended Path (BEE-001 Opinion)
 
-**Start with Supabase, design for portability.**
+**Given Vercel + Railway + eventual federation: Hybrid approach.**
 
-1. Use Supabase Auth + RLS + Realtime for v1
-2. Keep business logic in your API layer (not Supabase functions)
-3. Design data model to be Postgres-portable
-4. Build bot SDK against your API, not Supabase directly
-5. Plan migration triggers (user count, feature needs, cost)
+### Architecture
 
-This gives fastest path to working product while keeping options open.
+```
+┌─────────────────┐
+│ Vercel          │
+│ (Next.js)       │
+│ - UI            │
+│ - Auth UI       │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐     ┌─────────────────┐
+│ Railway         │────▶│ Railway         │
+│ (FastAPI)       │     │ (Postgres)      │
+│ - DEIA API      │     │ - Users, orgs   │
+│ - Work queues   │     │ - Work queues   │
+│ - Bot endpoints │     │ - Audit log     │
+└────────┬────────┘     └─────────────────┘
+         │
+         ▼ (Phase 2: when federation needed)
+┌─────────────────┐
+│ Matrix Bridge   │
+│ (or homeserver) │
+│ - Federation    │
+│ - Interop       │
+└─────────────────┘
+```
+
+### Phase 1: Own Stack (Fast, Portable)
+
+| Component | Choice | Why |
+|-----------|--------|-----|
+| Frontend | Next.js on Vercel | Already have space, great DX |
+| API | FastAPI on Railway | Already have space, Python ecosystem |
+| Database | Railway Postgres | Co-located, simple |
+| Auth | NextAuth.js or Lucia | Lightweight, no vendor lock-in |
+| Realtime | Railway + WebSockets | Or Ably/Pusher if needed |
+
+### Phase 2: Add Federation
+
+When ready for interop:
+- Add Matrix Application Service (bridge) to Railway
+- Or run Dendrite (lightweight homeserver) on Railway
+- Existing data model maps to Matrix rooms/events
+- Federation becomes opt-in per workspace
+
+### Why Not Supabase?
+
+With Railway already in play, Supabase adds:
+- Another vendor
+- Another billing
+- Split infrastructure
+- Harder to add Matrix later
+
+Keep it simple: Railway for everything backend.
 
 ---
 
 ## Next Steps
 
 1. Refine into ADR-006 (Platform Architecture Decision)
-2. Spike: Supabase project with auth + one table + RLS
-3. Define work queue schema
+2. Spike: FastAPI + Postgres on Railway with basic auth
+3. Define work queue schema (maps to Matrix events later)
 4. Design bot API contract
+5. Evaluate Matrix bridge complexity for Phase 2
 
 ---
 
