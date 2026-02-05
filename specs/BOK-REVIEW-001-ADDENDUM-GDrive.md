@@ -5,6 +5,9 @@
 **Status:** DRAFT
 **Extends:** BOK-REVIEW-001-GitHub-Tribunal-Pattern.md
 
+> **Note:** This document was recovered from BEE-001's session on 2026-02-04 after a crash.
+> If an original version is found with different content, compare and reconcile.
+
 ---
 
 ## 1. Post-Reject Human Quality Control
