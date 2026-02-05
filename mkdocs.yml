@@ -1,0 +1,69 @@
+site_name: SimDecisions
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - toc.integrate
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.tabs.link
+    - content.code.annotation
+    - content.code.copy
+  language: en
+  palette:
+    - scheme: default
+      toggle:
+        icon: material/toggle-switch-off-outline
+        name: Switch to dark mode
+      primary: teal
+      accent: purple
+    - scheme: slate
+      toggle:
+        icon: material/toggle-switch
+        name: Switch to light mode
+      primary: teal
+      accent: lime
+
+nav:
+  - Home: index.md
+  - Vision & Roadmap:
+    - Executive Summary: executive_summary.md
+    - Unified Vision: specs/UNIFIED-VISION.md
+    - Detailed Roadmap: specs/ROADMAP-DETAILED.md
+  - 'Architectural Decision Records (ADRs)':
+    - 'ADR-001: Event Ledger Foundation': specs/ADR-001-Event-Ledger-Foundation.md
+    - 'ADR-002: API Endpoint Registry': specs/ADR-002-API-Endpoint-Registry.md
+    - 'ADR-003: Entity ID Convention': specs/ADR-003-Entity-ID-Convention.md
+    - 'ADR-004: GDrive Coordination Layer': specs/ADR-004-GDrive-Coordination-Layer.md
+    - 'ADR-005: Dual-Publish Knowledge': specs/ADR-005-Dual-Publish-Knowledge.md
+    - 'ADR-006: Hive Control Plane': specs/ADR-006-Hive-Control-Plane.md
+    - 'ADR-007: Documentation Stack': specs/ADR-007-Documentation-Stack.md
+    - 'ADR-008: MCP Integration': specs/ADR-008-Model-Context-Protocol-Integration.md
+    - 'ADR-009: CLI First-Class Interface': specs/ADR-009-CLI-First-Class-Interface-and-Testbed.md
+    - 'ADR-010: Script Language and Hive Code': specs/ADR-010-Script-Language-and-Hive-Code.md
+  - 'Other Specifications':
+    - 'PyBee Species': specs/SPEC-PyBee-Python-Executable-Species.md
+    - 'Hive Comms Spec': specs/hive_comms_spec.md
+    - 'Task Registry': specs/TASK-REGISTRY.md
+    - 'RAGGIT Specification': specs/RAGGIT_Specification_v0.2.0.md
+  - 'Reviews & Feedback':
+    - 'ADR-006 Feedback (Gemini)': specs/ADR-006-Hive-Control-Plane_feedback_gemini.md
+    - 'BOK Review - GDrive': specs/BOK-REVIEW-001-ADDENDUM-GDrive.md
+    - 'BOK Review - GitHub Tribunal': specs/BOK-REVIEW-001-GitHub-Tribunal.md
+  - 'Additional Documents':
+    - 'README': specs/README.md
+    - 'Change Governance': specs/adr-002-configurable-change-governance.md
+    - 'Current Change Process': specs/current-change-process-as-config.md
+    - 'Scaling Governance': specs/SCALING-001-Growth-Governance.md
+    - 'Tribunal Onboarding': specs/SPEC-Tribunal-Onboarding.md
+    - 'Tribunal SDK': specs/SPEC-Tribunal-SDK.md
+    - 'Architecture':
+      - 'Session (2026-02-04)': specs/architecture/2026-02-04-SimDecisions-Architecture-Session.md
+      - 'Oort Cloud Pattern': specs/architecture/BOK-PATTERN-oort-cloud-partitioning.md
+      - 'Prophecy Engine Pattern': specs/architecture/BOK-PATTERN-prophecy-engine.md
+    - 'Inputs & Drafts':
+      - 'Platform Architecture Paths': specs/dave/inputs/2026-02-05-PLATFORM-ARCHITECTURE-PATHS.md
+      - 'Python Hive Vision': specs/dave/inputs/2026-02-04-PYTHON-HIVE-VISION.md
+      - 'Draft Hive Comms (GDrive)': specs/DRAFT-hive-comms-spec-gdrive.md

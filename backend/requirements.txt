@@ -1,0 +1,14 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+pydantic
+python-dotenv
+alembic
+watchdog
+ollama
+litellm
+requests
+lark
+transformers
+sentence-transformers
+torch==2.3.0 --index-url https://download.pytorch.org/whl/cpu
