@@ -18,3 +18,5 @@
 {"ts": "2026-02-04T18:35:00Z", "bee": "BEE-001", "event": "progress", "task": "gdrive-spec", "msg": "Created ADR-004-GDrive-Coordination-Layer.md - full folder hierarchy and API design for G-Drive as coordination layer"}
 {"ts": "2026-02-04T18:45:00Z", "bee": "BEE-001", "event": "progress", "task": "architecture", "msg": "Clarified: hive_comms_spec = API layer for bees, ADR-004 = G-Drive structure, Discord = notifications. Three separate specs."}
 {"ts": "2026-02-04T18:55:00Z", "bee": "BEE-001", "event": "progress", "task": "knowledge-spec", "msg": "Created ADR-005-Dual-Publish-Knowledge.md - GitHub for bots, G-Drive for humans, Discord for notifications"}
+{"ts": "2026-02-04T19:15:00Z", "bee": "BEE-001", "event": "progress", "task": "repo-setup", "msg": "Pushed simdecisions repo to github.com/deiasolutions/simdecisions"}
+{"ts": "2026-02-04T19:30:00Z", "bee": "BEE-001", "event": "progress", "task": "tribunal-spec", "msg": "Updated BOK-REVIEW-001 v1.1.0 - Added Section 15: Author-Conditional Workflow (Dave auto-merge, others require approval)"}

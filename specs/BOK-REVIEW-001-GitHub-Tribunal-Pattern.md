@@ -1078,6 +1078,163 @@ system_prompt: |
 
 ---
 
+## 15. Author-Conditional Workflow
+
+### 15.1 Rationale
+
+The human governor (Dave) is trusted but still benefits from tribunal feedback. Other authors require human approval after tribunal pass. This creates two paths through the same review system.
+
+### 15.2 Workflow by Author Type
+
+#### If Author ≠ Dave (Bee or external contributor)
+
+```
+PR opened
+    │
+    ▼
+Tribunal runs (3 Q33N judges)
+    │
+    ├─── PASS (score ≥ 6/18) ──────────┐
+    │                                   ▼
+    │                          Label: ready-for-dave
+    │                          Notify Dave
+    │                                   │
+    │                                   ▼
+    │                          Dave reviews
+    │                                   │
+    │                          ┌───────┴───────┐
+    │                          ▼               ▼
+    │                       Approve         Request changes
+    │                          │               │
+    │                          ▼               ▼
+    │                       MERGE          Back to author
+    │
+    └─── FAIL (score < 6/18) ──────────┐
+                                        ▼
+                               Label: needs-work
+                               Post feedback
+                               Author iterates
+```
+
+#### If Author = Dave (Human Governor)
+
+```
+PR opened
+    │
+    ▼
+Tribunal runs (3 Q33N judges)
+    │
+    ├─── PASS (score ≥ 6/18) ──────────┐
+    │                                   ▼
+    │                          AUTO-MERGE
+    │                          (No second human review needed)
+    │
+    └─── FAIL (score < 6/18) ──────────┐
+                                        ▼
+                               Label: needs-work
+                               Post feedback to Dave
+                               Dave iterates or overrides
+```
+
+### 15.3 GitHub Actions Implementation
+
+```yaml
+# In tribunal-review.yml aggregate job
+
+- name: Determine merge path
+  id: merge_path
+  run: |
+    AUTHOR="${{ github.event.pull_request.user.login }}"
+    GOVERNOR="deiasolutions"  # Dave's GitHub username
+
+    if [ "$AUTHOR" == "$GOVERNOR" ]; then
+      echo "path=auto-merge" >> $GITHUB_OUTPUT
+    else
+      echo "path=require-approval" >> $GITHUB_OUTPUT
+    fi
+
+- name: Handle tribunal pass
+  if: steps.aggregate.outputs.threshold_met == 'true'
+  uses: actions/github-script@v7
+  with:
+    script: |
+      const path = '${{ steps.merge_path.outputs.path }}';
+      const prNumber = ${{ github.event.pull_request.number }};
+
+      if (path === 'auto-merge') {
+        // Dave's PR - auto-merge
+        await github.rest.pulls.merge({
+          owner: context.repo.owner,
+          repo: context.repo.repo,
+          pull_number: prNumber,
+          merge_method: 'squash'
+        });
+
+        await github.rest.issues.createComment({
+          owner: context.repo.owner,
+          repo: context.repo.repo,
+          issue_number: prNumber,
+          body: '✅ Tribunal passed. Auto-merged (governor submission).'
+        });
+      } else {
+        // Bee PR - require Dave's approval
+        await github.rest.issues.addLabels({
+          owner: context.repo.owner,
+          repo: context.repo.repo,
+          issue_number: prNumber,
+          labels: ['ready-for-dave']
+        });
+
+        await github.rest.issues.createComment({
+          owner: context.repo.owner,
+          repo: context.repo.repo,
+          issue_number: prNumber,
+          body: '⚖️ Tribunal passed. Awaiting @deiasolutions approval.'
+        });
+      }
+```
+
+### 15.4 Branch Protection Settings
+
+```yaml
+# For main branch:
+
+protection_rules:
+  required_status_checks:
+    strict: true
+    contexts:
+      - "tribunal/consensus"
+
+  required_pull_request_reviews:
+    # This is bypassed for Dave via auto-merge in Actions
+    # But enforced for others via the label workflow
+    dismiss_stale_reviews: true
+    require_code_owner_reviews: false
+    required_approving_review_count: 0  # Actions handles this conditionally
+
+  restrictions:
+    users: ["deiasolutions"]  # Only Dave can push directly (emergency)
+    teams: []
+```
+
+### 15.5 Override Mechanism
+
+Dave can override a tribunal rejection:
+
+```
+/tribunal override <reason>
+```
+
+This:
+1. Logs the override to event ledger
+2. Adds `governor-override` label
+3. Enables merge despite failing score
+4. Feeds back to tribunal calibration
+
+Override events are tracked for kaizen analysis — frequent overrides indicate tribunal miscalibration.
+
+---
+
 ## Appendix A: Glossary
 
 | Term | Definition |
@@ -1106,4 +1263,13 @@ system_prompt: |
 
 *"The human reviews only what the tribunal approves. The tribunal learns from what the human accepts."*
 
-**— BOK-REVIEW-001 v1.0.0**
+**— BOK-REVIEW-001 v1.1.0**
+
+---
+
+## Changelog
+
+| Version | Date | Changes |
+|---------|------|---------|
+| 1.1.0 | 2026-02-04 | Added Section 15: Author-Conditional Workflow (auto-merge for Dave, require approval for others) |
+| 1.0.0 | 2026-02-04 | Initial spec |
