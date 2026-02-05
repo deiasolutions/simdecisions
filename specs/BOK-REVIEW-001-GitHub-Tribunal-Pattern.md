@@ -1,8 +1,8 @@
 # BOK-REVIEW-001: GitHub Tribunal Pattern
 
-**Pattern Name:** Three-Judge Code Review Tribunal  
-**Version:** 1.0.0  
-**Date:** 2026-02-04  
+**Pattern Name:** Three-Judge Code Review Tribunal
+**Version:** 1.2.0
+**Date:** 2026-02-05  
 **Authors:** Dave (daaaave-atx) × Claude (Anthropic)  
 **Status:** PROPOSED  
 **Tags:** #BOK #Review #GitHub #Kaizen #BABOK #Tribunal #Q33N
@@ -1235,6 +1235,186 @@ Override events are tracked for kaizen analysis — frequent overrides indicate 
 
 ---
 
+## 16. Spec Feedback & Joint Prioritization
+
+### 16.1 Purpose
+
+Beyond evaluating whether a submission meets criteria, judges can provide **priority feedback** on the spec itself. This enables:
+
+- Specs to improve based on multi-vendor perspective
+- Ambiguities surfaced during review to be resolved
+- Feedback aggregated and jointly prioritized by tribunal
+
+### 16.2 Judge Feedback Structure
+
+Each judge may optionally include spec feedback in their review:
+
+```yaml
+spec_feedback:
+  - id: "FB-001"
+    spec_ref: "ADR-006"           # Which spec
+    section: "4.2"                 # Which section (optional)
+    priority: "high"               # high | medium | low
+    category: "ambiguity"          # ambiguity | gap | conflict | improvement
+    summary: "Sync frequency undefined for conflict scenarios"
+    detail: |
+      The spec states 5s sync but doesn't clarify behavior when
+      both API and file write occur within the same 5s window.
+    suggested_change: |
+      Add conflict resolution timing: "If both sources change within
+      sync window, API write takes precedence with file write logged
+      as conflict."
+```
+
+### 16.3 Feedback Categories
+
+| Category | Description | Example |
+|----------|-------------|---------|
+| **ambiguity** | Spec language unclear or open to interpretation | "Does 'near real-time' mean <1s or <5s?" |
+| **gap** | Missing information needed for implementation | "No error handling specified for webhook failures" |
+| **conflict** | Spec contradicts another spec or itself | "ADR-006 says X, but ADR-004 says Y" |
+| **improvement** | Enhancement suggestion | "Consider adding rate limit headers to API responses" |
+
+### 16.4 Joint Prioritization Process
+
+After individual judge reviews, feedback items are **jointly prioritized**:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                JOINT PRIORITIZATION                          │
+│                                                              │
+│  1. Collect: Aggregator gathers all spec_feedback items     │
+│                                                              │
+│  2. Dedupe: Merge similar feedback (semantic matching)      │
+│                                                              │
+│  3. Vote: Each judge votes on priority (async)              │
+│     ┌─────────┬─────────┬─────────┐                         │
+│     │ Gemini  │ Codex   │Anthropic│                         │
+│     │  high   │  high   │  medium │ → Consensus: HIGH       │
+│     └─────────┴─────────┴─────────┘                         │
+│                                                              │
+│  4. Rank: Feedback sorted by consensus priority             │
+│                                                              │
+│  5. Report: Prioritized list sent to human + spec owner     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 16.5 Priority Consensus Rules
+
+| Scenario | Consensus Priority |
+|----------|-------------------|
+| All judges agree | That priority |
+| 2 high, 1 medium | High |
+| 2 medium, 1 low | Medium |
+| 1 high, 1 medium, 1 low | Medium (escalate to human) |
+| Any judge marks "critical" | Critical (immediate human attention) |
+
+### 16.6 Feedback Output Schema
+
+```yaml
+spec_feedback_report:
+  submission_ref: "PR-042"
+  generated_at: "2026-02-05T10:30:00Z"
+
+  items:
+    - id: "FB-001"
+      spec_ref: "ADR-006"
+      category: "ambiguity"
+      summary: "Sync frequency undefined for conflict scenarios"
+
+      judge_votes:
+        gemini: "high"
+        codex: "high"
+        anthropic: "medium"
+
+      consensus_priority: "high"
+
+      raised_by: ["gemini", "codex"]  # Who originally flagged
+
+      suggested_changes:
+        - source: "gemini"
+          text: "Add explicit conflict timing rules"
+        - source: "codex"
+          text: "Define precedence: API > file"
+
+    - id: "FB-002"
+      spec_ref: "ADR-006"
+      category: "gap"
+      summary: "No retry policy for webhook delivery"
+      consensus_priority: "medium"
+      # ...
+
+  summary:
+    total_items: 5
+    by_priority:
+      critical: 0
+      high: 2
+      medium: 2
+      low: 1
+    by_category:
+      ambiguity: 2
+      gap: 2
+      improvement: 1
+```
+
+### 16.7 Feedback Lifecycle
+
+```
+Feedback raised → Joint prioritization → Report generated
+                                              │
+                        ┌─────────────────────┼─────────────────────┐
+                        ▼                     ▼                     ▼
+                   ┌─────────┐          ┌─────────┐          ┌─────────┐
+                   │ Accept  │          │ Defer   │          │ Reject  │
+                   │ → Task  │          │ → Backlog│         │ → Close │
+                   └─────────┘          └─────────┘          └─────────┘
+                        │
+                        ▼
+                   Spec updated → Tribunal notified → Calibration signal
+```
+
+### 16.8 Integration with Review Egg
+
+Add to the Review Egg schema (Section 6):
+
+```yaml
+# Inside review_egg.judges[].review
+spec_feedback:
+  - id: string
+    spec_ref: string
+    section: string (optional)
+    priority: enum [critical, high, medium, low]
+    category: enum [ambiguity, gap, conflict, improvement]
+    summary: string
+    detail: string (optional)
+    suggested_change: string (optional)
+```
+
+### 16.9 Aggregator Responsibilities
+
+The aggregator bot must:
+
+1. Extract `spec_feedback` from each judge's review
+2. Deduplicate using semantic similarity (>0.85 cosine = same feedback)
+3. Trigger joint prioritization vote (async, 1-hour timeout)
+4. Generate `spec_feedback_report`
+5. Post report to:
+   - PR comments (summary)
+   - G-Drive (full report)
+   - Discord #spec-feedback channel
+6. Create tasks for accepted high-priority items
+
+### 16.10 Human Governor Actions
+
+| Action | Effect |
+|--------|--------|
+| **Accept** | Creates task to update spec, assigns owner |
+| **Defer** | Adds to spec backlog with priority |
+| **Reject** | Closes with reason, feeds back to judges |
+| **Merge** | Combines multiple feedback items into one task |
+
+---
+
 ## Appendix A: Glossary
 
 | Term | Definition |
@@ -1263,7 +1443,7 @@ Override events are tracked for kaizen analysis — frequent overrides indicate 
 
 *"The human reviews only what the tribunal approves. The tribunal learns from what the human accepts."*
 
-**— BOK-REVIEW-001 v1.1.0**
+**— BOK-REVIEW-001 v1.2.0**
 
 ---
 
@@ -1271,5 +1451,6 @@ Override events are tracked for kaizen analysis — frequent overrides indicate 
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.2.0 | 2026-02-05 | Added Section 16: Spec Feedback & Joint Prioritization (judges provide spec feedback, tribunal jointly prioritizes) |
 | 1.1.0 | 2026-02-04 | Added Section 15: Author-Conditional Workflow (auto-merge for Dave, require approval for others) |
 | 1.0.0 | 2026-02-04 | Initial spec |
