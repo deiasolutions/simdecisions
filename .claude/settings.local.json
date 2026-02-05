@@ -12,7 +12,9 @@
       "Bash(gh repo edit:*)",
       "Bash(gh api:*)",
       "Bash(git commit -m \"$\\(cat <<''EOF''\nUpdate BEE-001 activity log with session recovery\n\n- Logged scaling spec creation from yesterday\n- Logged context recovery and git setup completion\n- Noted branch protection limitation \\(requires Pro/public repo\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(npx create-next-app:*)",
+      "Bash(timeout 10 npm run dev:*)"
     ]
   }
 }
