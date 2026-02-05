@@ -28,3 +28,4 @@
 {"ts": "2026-02-05T09:16:00Z", "bee": "BEE-001", "event": "task_completed", "task": "repo-setup", "msg": "Branch protection enabled: PRs required, stale reviews dismissed, no direct pushes to main"}
 {"ts": "2026-02-05T09:25:00Z", "bee": "BEE-001", "event": "progress", "task": "documentation", "msg": "Created .github/REPO-CONFIG.md documenting repo visibility, branch protection, contribution workflow"}
 {"ts": "2026-02-05T09:26:00Z", "bee": "BEE-001", "event": "progress", "task": "documentation", "msg": "Updated README.md with Repository section linking to REPO-CONFIG.md"}
+{"ts": "2026-02-05T09:40:00Z", "bee": "BEE-001", "event": "progress", "task": "spec-capture", "msg": "Captured platform architecture paths input - Supabase vs Keycloak vs Matrix decision"}
