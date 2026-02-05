@@ -52,3 +52,16 @@ class Event(Base):
     cost_tokens = Column(Integer)
     cost_usd = Column(Float)
     cost_carbon = Column(Float)
+
+
+class Approval(Base):
+    __tablename__ = "approvals"
+
+    id = Column(String, primary_key=True, index=True)
+    created_at = Column(String, nullable=False)
+    status = Column(String, nullable=False, default="pending") # pending, approved, denied
+    original_input = Column(Text, nullable=False)
+    llm_hypothesis = Column(Text, nullable=False)
+    proposed_hive_code = Column(Text, nullable=False)
+    resolved_by = Column(String)
+    resolved_at = Column(String)

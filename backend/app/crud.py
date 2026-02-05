@@ -84,3 +84,37 @@ def log_event(db: Session, event_type: str, actor: str, payload: dict):
 def get_events(db: Session, skip: int = 0, limit: int = 100):
     """Retrieves a list of events from the event ledger."""
     return db.query(models.Event).order_by(models.Event.timestamp.desc()).offset(skip).limit(limit).all()
+
+
+# --- Approval CRUD Functions ---
+
+def create_approval(db: Session, approval: schemas.ApprovalCreate):
+    """Creates a new approval request."""
+    db_approval = models.Approval(
+        id=str(uuid.uuid4()),
+        created_at=datetime.now().isoformat(),
+        **approval.model_dump()
+    )
+    db.add(db_approval)
+    db.commit()
+    db.refresh(db_approval)
+    return db_approval
+
+def get_approval(db: Session, approval_id: str):
+    """Retrieves a single approval request by its ID."""
+    return db.query(models.Approval).filter(models.Approval.id == approval_id).first()
+
+def get_pending_approvals(db: Session, skip: int = 0, limit: int = 100):
+    """Retrieves a list of all pending approval requests."""
+    return db.query(models.Approval).filter(models.Approval.status == "pending").order_by(models.Approval.created_at).offset(skip).limit(limit).all()
+
+def resolve_approval(db: Session, approval_id: str, update: schemas.ApprovalUpdate):
+    """Resolves an approval request by setting its status (approved/denied)."""
+    db_approval = get_approval(db, approval_id)
+    if db_approval and db_approval.status == "pending":
+        db_approval.status = update.status
+        db_approval.resolved_by = update.resolved_by
+        db_approval.resolved_at = datetime.now().isoformat()
+        db.commit()
+        db.refresh(db_approval)
+    return db_approval

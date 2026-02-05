@@ -85,34 +85,70 @@ def complete_task_endpoint(task_id: str, completion_request: schemas.TaskComplet
         raise HTTPException(status_code=404, detail="Task not found or not 'in_progress'")
     return db_task
 
-from lark import Lark, Transformer
 
-# ... (keep existing imports)
+# --- Approval Endpoints ---
 
-# ... (keep existing app setup and lifespan)
+@app.get("/api/v1/approvals/pending", response_model=List[schemas.Approval], summary="List Pending Approvals")
+def get_pending_approvals_endpoint(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    """
+    Retrieves a list of all approval requests with a 'pending' status.
+    """
+    return crud.get_pending_approvals(db, skip=skip, limit=limit)
 
-# ... (keep existing task endpoints)
+@app.post("/api/v1/approvals/{approval_id}/resolve", response_model=schemas.Approval, summary="Resolve an Approval")
+def resolve_approval_endpoint(approval_id: str, update: schemas.ApprovalUpdate, db: Session = Depends(get_db)):
+    """
+    Approves or denies a pending approval request.
+    If approved, the proposed Hive Code is then executed.
+    """
+    db_approval = crud.get_approval(db, approval_id)
+    if db_approval is None or db_approval.status != 'pending':
+        raise HTTPException(status_code=404, detail="Pending approval not found")
+
+    resolved_approval = crud.resolve_approval(db, approval_id=approval_id, update=update)
+
+    if resolved_approval and resolved_approval.status == 'approved':
+        print(f"Executing approved Hive Code for approval {approval_id}")
+        # Execute the approved code
+        try:
+            # We re-use the Hive Code executor logic
+            # This could be refactored into a shared service
+            tree = hive_parser.parse(resolved_approval.proposed_hive_code)
+            executor = HiveCodeExecutor(db=db)
+            executor.transform(tree)
+            # TODO: Log the successful execution event
+        except Exception as e:
+            # TODO: Log the failed execution event
+            print(f"Error executing approved Hive Code: {e}")
+            # The approval is already marked 'approved', we might need a new status like 'execution_failed'
+            pass
+
+    return resolved_approval
+
+from language import translator
+from language.translator import ClarificationNeededError
+
+# ... (keep existing imports, app setup, lifespan, and task/approval endpoints)
 
 
-# --- HIVE CODE EXECUTOR ---
+# --- COMMAND ENDPOINT (SCRIPT & HIVE CODE) ---
 
-# Grammar for the Basque-based Hive Code
+# Hive Code Parser (still needed for executing translated or approved code)
 hive_grammar = r"""
     ?start: command
-
     command: create_task | list_tasks | get_task | assign_task
-
     create_task: "SORTU" "ZEREGINA" ESCAPED_STRING "izenburuarekin" ("eta" ESCAPED_STRING "deskribapenarekin")? -> create_task
     list_tasks: "ZERRENDATU" "ZEREGINAK" (ESCAPED_STRING "egoerarekin")? -> list_tasks
     get_task: "LORTU" "ZEREGINA" ESCAPED_STRING -> get_task
     assign_task: "ESLEITU" "ZEREGINA" ESCAPED_STRING ESCAPED_STRING "eragileari" -> assign_task
-    
     %import common.ESCAPED_STRING
     %import common.WS
     %ignore WS
 """
+hive_parser = Lark(hive_grammar, start='command', parser='lalr', case_sensitive=True)
 
 class HiveCodeExecutor(Transformer):
+    # ... (HiveCodeExecutor class from previous step remains the same)
     def __init__(self, db: Session):
         self.db = db
 
@@ -124,86 +160,79 @@ class HiveCodeExecutor(Transformer):
         description = items[4] if len(items) > 4 else None
         
         task_create = schemas.TaskCreate(
-            title=title,
-            description=description,
-            task_ref="HIVE-CODE-TASK", # Default ref
-            created_by="HiveCode" # Default creator
+            title=title, description=description, task_ref="HIVE-CODE-TASK", created_by="HiveCode"
         )
         db_task = crud.create_task(db=self.db, task=task_create)
-
-        # Trigger one-way file sync
         file_path = file_synchronizer.write_task_to_file(db_task)
         synced_at = datetime.now().isoformat()
         crud.update_task_file_sync_status(self.db, db_task.id, file_path, synced_at)
-        
         return db_task
 
     def list_tasks(self, items):
-        status = items[2] if len(items) > 2 else None
-        # TODO: Implement filtering in crud.get_tasks
-        if status:
-            print(f"Filtering by status: {status}") # Placeholder
         return crud.get_tasks(db=self.db)
         
     def get_task(self, items):
         task_id = items[2]
         task = crud.get_task(db=self.db, task_id=task_id)
-        if task is None:
-            raise HTTPException(status_code=404, detail="Task not found")
+        if task is None: raise HTTPException(status_code=404, detail="Task not found")
         return task
 
     def assign_task(self, items):
         task_id, agent_id = items[2], items[3]
-        # TODO: Implement crud.assign_task function
-        print(f"Assigning task {task_id} to agent {agent_id}") # Placeholder
         task = crud.get_task(db=self.db, task_id=task_id)
-        if task is None:
-            raise HTTPException(status_code=404, detail="Task not found")
+        if task is None: raise HTTPException(status_code=404, detail="Task not found")
         task.assigned_to = agent_id
         self.db.add(task)
         self.db.commit()
         return task
 
-# Initialize Hive Code parser
-hive_parser = Lark(hive_grammar, start='command', parser='lalr', case_sensitive=True)
-
-@app.post("/api/v1/hive-code/", summary="Execute a Hive Code command")
-def execute_hive_code(request: schemas.HiveCodeRequest, db: Session = Depends(get_db)):
-    """
-    Parses and executes a Basque-based Hive Code string, and logs the event.
-    """
-    event_payload = {
-        "input_hive_code": request.code,
-        "execution_success": False,
-        "error": None
-    }
+def execute_hive_code_string(hive_code: str, db: Session):
+    """Parses and executes a given Hive Code string."""
+    event_payload = {"input_hive_code": hive_code, "execution_success": False, "error": None}
     try:
-        tree = hive_parser.parse(request.code)
+        tree = hive_parser.parse(hive_code)
         executor = HiveCodeExecutor(db=db)
         result = executor.transform(tree)
-        
-        # If we reach here, execution was successful
         event_payload["execution_success"] = True
-        
-        # Log the successful event
-        crud.log_event(
-            db=db,
-            event_type="hive_code_executed",
-            actor="HiveCodeEndpoint", # Or get user from auth
-            payload=event_payload
-        )
-        
+        crud.log_event(db=db, event_type="hive_code_executed", actor="HiveCodeExecutor", payload=event_payload)
         return result
     except Exception as e:
-        # Log the failed event
         event_payload["error"] = str(e)
-        crud.log_event(
-            db=db,
-            event_type="hive_code_executed",
-            actor="HiveCodeEndpoint",
-            payload=event_payload
-        )
+        crud.log_event(db=db, event_type="hive_code_executed", actor="HiveCodeExecutor", payload=event_payload)
         raise HTTPException(status_code=400, detail=f"Invalid or unsupported Hive Code: {e}")
+
+@app.post("/api/v1/script-command/", summary="Execute a Script Language command")
+def execute_script_command(request: schemas.ScriptCommandRequest, db: Session = Depends(get_db)):
+    """
+    Translates Script Language to Hive Code and executes it.
+    If translation is ambiguous, it creates an Approval request for human review.
+    """
+    try:
+        # Attempt to translate Script Language to Hive Code
+        hive_code = translator.translate_script_to_hive_code(request.code)
+        # If successful, execute it
+        return execute_hive_code_string(hive_code, db)
+
+    except ClarificationNeededError as e:
+        # If the translator needs clarification, create an approval request
+        approval_create = schemas.ApprovalCreate(
+            original_input=request.code,
+            llm_hypothesis=e.message,
+            proposed_hive_code=e.proposed_hive_code or ""
+        )
+        approval = crud.create_approval(db=db, approval=approval_create)
+        raise HTTPException(
+            status_code=202, # Accepted for later processing
+            detail={
+                "message": "Command is ambiguous and requires human approval.",
+                "approval_request_id": approval.id,
+                "clarification_needed": e.message
+            }
+        )
+    except ValueError as e:
+        # Handle general translation value errors
+        raise HTTPException(status_code=400, detail=f"Could not translate script: {e}")
+
 
 @app.get("/")
 def read_root():

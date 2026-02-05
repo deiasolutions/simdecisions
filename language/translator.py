@@ -3,6 +3,13 @@ from backend.app.llm_clients import LLMClient
 import asyncio
 import re
 
+class ClarificationNeededError(Exception):
+    """Custom exception raised when the LLM translator needs more information."""
+    def __init__(self, message, proposed_hive_code=None):
+        self.message = message
+        self.proposed_hive_code = proposed_hive_code
+        super().__init__(self.message)
+
 # Grammar for the English-like Script Language
 script_grammar = r"""
     ?start: command
@@ -65,6 +72,7 @@ async def async_translate_script_to_hive_code(script: str, context: str = None) 
     """
     Translates a Script Language string into a Hive Code string using a Lark parser,
     with an LLM fallback for ambiguous inputs.
+    Raises ClarificationNeededError if the LLM cannot translate directly.
     """
     try:
         # Fast Path: Rule-based parsing
@@ -77,31 +85,31 @@ async def async_translate_script_to_hive_code(script: str, context: str = None) 
         llm_response = await llm_client.translate_or_clarify(script, context=context)
         
         # Attempt to extract Hive Code from LLM response
-        # This regex looks for common Hive Code verbs at the start of a line
         hive_code_match = re.search(r'^(SORTU|ZERRENDATU|ESLEITU|LORTU|BIDALI)\s+.*', llm_response, re.IGNORECASE | re.DOTALL | re.MULTILINE)
         if hive_code_match:
+            # LLM is confident and returned Hive Code
             return hive_code_match.group(0).strip()
-        elif "clarify" in llm_response.lower() or "ambiguous" in llm_response.lower() or "more information" in llm_response.lower():
-            raise ValueError(f"LLM requires clarification: {llm_response}")
         else:
-            raise ValueError(f"LLM could not translate and did not ask for clarification: {llm_response}")
+            # If no valid Hive Code is returned, assume it's a clarification request/hypothesis.
+            raise ClarificationNeededError(llm_response, proposed_hive_code="<hypothesized_code_placeholder>")
 
 def translate_script_to_hive_code(script: str, context: str = None) -> str:
     """Synchronous wrapper for the async translation function."""
-    return asyncio.run(async_translate_script_to_hive_code(script, context))
+    # This is a simplified approach for demonstration. In a real FastAPI app,
+    # you would use async dependencies and endpoints.
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    
+    return loop.run_until_complete(async_translate_script_to_hive_code(script, context))
 
 
 # Example Usage
 if __name__ == "__main__":
     scripts_to_test = [
         'CREATE TASK with title "Review ADR-010" and description "A new language spec"',
-        'CREATE TASK with title "A simple task"',
-        'LIST TASKS with status "pending"',
-        'LIST TASKS',
-        'ASSIGN TASK "task-123" to AGENT "BEE-001"',
-        'GET TASK "task-456"',
-        'SEND MESSAGE "Hello World" to CHANNEL "general"',
-        'create a new task about the project scope', # Ambiguous for Lark, should go to LLM
         'list all the pending items please', # Ambiguous for Lark, should go to LLM
     ]
 
@@ -109,9 +117,9 @@ if __name__ == "__main__":
         try:
             hive_code_output = translate_script_to_hive_code(script_input)
             print(f'Script: "{script_input}"\nHive Code: {hive_code_output}\n')
+        except ClarificationNeededError as e:
+            print(f'Script: "{script_input}"\nLLM needs clarification: {e.message}\n')
         except ValueError as e:
-            print(f'Failed to translate script: "{script_input}"')
-            print(f'Error: {e}\n')
+            print(f'Failed to translate script: "{script_input}"\nError: {e}\n')
         except Exception as e:
-            print(f'An unexpected error occurred for script: "{script_input}"')
-            print(f'Error: {e}\n')
+            print(f'An unexpected error occurred for script: "{script_input}"\nError: {e}\n')

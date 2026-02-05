@@ -46,7 +46,7 @@ class Message(MessageBase):
     class Config:
         from_attributes = True
 
-class HiveCodeRequest(BaseModel):
+class ScriptCommandRequest(BaseModel):
     code: str
 
 
@@ -71,3 +71,26 @@ class Event(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ApprovalBase(BaseModel):
+    original_input: str
+    llm_hypothesis: str
+    proposed_hive_code: str
+
+class ApprovalCreate(ApprovalBase):
+    pass
+
+class Approval(ApprovalBase):
+    id: str
+    created_at: Any
+    status: str
+    resolved_by: Optional[str] = None
+    resolved_at: Optional[Any] = None
+
+    class Config:
+        from_attributes = True
+
+class ApprovalUpdate(BaseModel):
+    status: str # "approved" or "denied"
+    resolved_by: str
