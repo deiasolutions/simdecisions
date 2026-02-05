@@ -27,6 +27,7 @@
 | ADR-003 | Entity ID Convention | IMPLEMENTED |
 | ADR-004 | G-Drive Coordination Layer | PROPOSED |
 | ADR-005 | Dual-Publish Knowledge | PROPOSED |
+| ADR-006 | Hive Control Plane | PROPOSED |
 
 ### BOK Patterns
 
