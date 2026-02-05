@@ -364,7 +364,8 @@ Conflict detected (API + file both changed within sync window)
 | Same field, different values | LLM decides | LLM |
 | Semantic conflict detected | LLM analyzes | LLM |
 | Violation detected | Escalate | Human |
-| LLM confidence < 80% | Escalate | Human |
+| LLM returns "uncertain" | Escalate | Human |
+| Critical entity (task, permissions) | Escalate | Human |
 
 ### Violation Checking
 
@@ -439,17 +440,24 @@ conflict_resolution:
   llm:
     primary: "ollama"
     fallback: "claude-haiku"
-    confidence_threshold: 0.8
 
   ollama:
     url: "${OLLAMA_URL:-http://localhost:11434}"
     model: "${OLLAMA_MODEL:-llama3}"
     timeout_seconds: 30
 
-  escalation:
-    on_violation: true
-    on_low_confidence: true
-    notify_channel: "#conflicts"
+  # Explicit escalation triggers (no arbitrary confidence %)
+  escalate_to_human_when:
+    - violation_detected: true        # Any spec/process violation found
+    - llm_resolution: "uncertain"     # LLM explicitly says it can't decide
+    - conflict_type: "semantic"       # Same field, ambiguous meaning
+    - entity_type_in:                 # Critical entities always escalate
+        - "task"
+        - "permission"
+        - "api_key"
+        - "audit_entry"
+
+  notify_channel: "#conflicts"
 ```
 
 ### Audit Trail
@@ -467,8 +475,14 @@ VALUES (
         "version_a": {...},
         "version_b": {...},
         "resolution": "merge",
+        "resolution_method": "llm",
         "model_used": "ollama:llama3",
-        "confidence": 0.92,
+        "escalation_triggers_checked": {
+            "violation_detected": false,
+            "llm_uncertain": false,
+            "semantic_conflict": false,
+            "critical_entity": false
+        },
         "violations_checked": ["PROCESS-0002", "PROCESS-0004"],
         "violations_found": []
     }'
@@ -698,8 +712,7 @@ On initial deployment, existing `.deia/hive/` files are ingested:
 ## Open Questions
 
 1. **Ollama model selection:** Which model for conflict resolution? (Llama 3, Mistral, CodeLlama?)
-2. **Confidence threshold:** 80% OK for escalation trigger?
-3. **Rollback strategy:** How to recover from bad sync state?
+2. **Rollback strategy:** How to recover from bad sync state?
 
 ---
 
@@ -718,6 +731,7 @@ On initial deployment, existing `.deia/hive/` files are ingested:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 0.2.1 | 2026-02-05 | Replaced arbitrary 80% confidence threshold with explicit escalation triggers |
 | 0.2.0 | 2026-02-05 | Applied Gemini feedback: file-driven as first-class, LLM conflict resolution with Ollama, resolved open questions |
 | 0.1.0 | 2026-02-05 | Initial draft for review |
 
