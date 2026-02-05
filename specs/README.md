@@ -40,6 +40,8 @@
 | ID | Title | Status |
 |----|-------|--------|
 | SPEC-PyBee | Python Executable Species | PROPOSED |
+| SPEC-Tribunal-Onboarding | Q33N Judge Onboarding Guide | PROPOSED |
+| SPEC-Tribunal-SDK | Python SDK for Tribunal API | PROPOSED |
 | RAGGIT | Creator Marketplace Protocol | DRAFT |
 
 ### Scaling Roadmap
