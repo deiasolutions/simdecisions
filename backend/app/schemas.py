@@ -94,3 +94,22 @@ class Approval(ApprovalBase):
 class ApprovalUpdate(BaseModel):
     status: str # "approved" or "denied"
     resolved_by: str
+
+
+# --- Tribunal Schemas ---
+
+class TribunalVerdict(BaseModel):
+    pr_number: int
+    judge_id: str  # e.g., "Q33N-ANTHROPIC"
+    scores: dict  # {"I": 1, "N": 1, "V": 0, "E": 1, "S": 1, "T": 1}
+    vote: str  # "APPROVE" | "REQUEST_CHANGES" | "ABSTAIN"
+    summary: str
+    notes: Optional[str] = ""
+    spec_feedback: Optional[List[dict]] = None
+
+
+# --- Task Progress Schema ---
+
+class TaskProgress(BaseModel):
+    bee_id: str
+    message: str

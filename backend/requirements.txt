@@ -1,14 +1,25 @@
-fastapi
-uvicorn[standard]
-sqlalchemy
-pydantic
-python-dotenv
-alembic
-watchdog
-ollama
-litellm
-requests
-lark
-transformers
-sentence-transformers
-torch==2.3.0 --index-url https://download.pytorch.org/whl/cpu
+# Core API
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# Database
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.9
+alembic>=1.13.0
+
+# Utilities
+python-dotenv>=1.0.0
+watchdog>=3.0.0
+requests>=2.31.0
+lark>=1.1.0
+
+# LLM (optional - for conflict resolution)
+ollama>=0.1.0
+litellm>=1.0.0
+
+# ML (optional - for embeddings)
+# transformers>=4.36.0
+# sentence-transformers>=2.2.0
+# torch==2.3.0 --index-url https://download.pytorch.org/whl/cpu

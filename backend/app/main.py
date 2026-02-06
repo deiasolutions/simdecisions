@@ -1,9 +1,12 @@
 from fastapi import FastAPI, Depends, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List
 from datetime import datetime
 import threading
+import os
 from contextlib import asynccontextmanager
+from lark import Lark, Transformer
 
 from . import crud, models, schemas
 from .database import SessionLocal, engine, get_db
@@ -30,6 +33,16 @@ async def lifespan(app: FastAPI):
     # Proper shutdown would require the observer object to be returned and stopped.
 
 app = FastAPI(title="SimDecisions Hive Control Plane", lifespan=lifespan)
+
+# CORS middleware for frontend
+cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.post("/api/v1/tasks/", response_model=schemas.Task)
 def create_task_endpoint(task: schemas.TaskCreate, db: Session = Depends(get_db)):
@@ -237,3 +250,85 @@ def execute_script_command(request: schemas.ScriptCommandRequest, db: Session = 
 @app.get("/")
 def read_root():
     return {"message": "SimDecisions Hive Control Plane is running."}
+
+
+# --- Health Check ---
+@app.get("/health", summary="Health check endpoint")
+def health_check():
+    """Health check for Railway/load balancers."""
+    return {"status": "ok", "service": "hive-control-plane", "version": "0.1.0"}
+
+
+# --- Tribunal Endpoints (MVP Stubs) ---
+
+@app.get("/api/v1/tribunal/pending", response_model=List[dict], summary="List PRs awaiting tribunal review")
+def get_pending_tribunal_reviews(db: Session = Depends(get_db)):
+    """
+    Returns list of PRs awaiting tribunal review.
+    MVP: Returns empty list - will be populated when GitHub integration is added.
+    """
+    # TODO: Integrate with GitHub API to fetch PRs with 'needs-review' label
+    return []
+
+
+@app.post("/api/v1/tribunal/verdict", summary="Submit tribunal verdict")
+def submit_tribunal_verdict(verdict: schemas.TribunalVerdict, db: Session = Depends(get_db)):
+    """
+    Submit a tribunal verdict for a PR.
+    MVP: Logs the verdict to the event ledger.
+    """
+    # Log verdict to event ledger
+    crud.log_event(
+        db=db,
+        event_type="tribunal_verdict_submitted",
+        actor=verdict.judge_id,
+        payload={
+            "pr_number": verdict.pr_number,
+            "scores": verdict.scores,
+            "vote": verdict.vote,
+            "summary": verdict.summary,
+            "notes": verdict.notes
+        }
+    )
+    return {
+        "status": "accepted",
+        "verdict_id": f"verdict-{verdict.pr_number}-{verdict.judge_id}",
+        "message": "Verdict recorded in event ledger"
+    }
+
+
+# --- Task Progress Endpoint ---
+
+@app.post("/api/v1/tasks/{task_id}/progress", response_model=schemas.Task, summary="Log task progress")
+def log_task_progress(task_id: str, progress: schemas.TaskProgress, db: Session = Depends(get_db)):
+    """
+    Log progress on a task without changing its state.
+    """
+    db_task = crud.get_task(db, task_id=task_id)
+    if db_task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    # Log progress to event ledger
+    crud.log_event(
+        db=db,
+        event_type="task_progress",
+        actor=progress.bee_id,
+        payload={
+            "task_id": task_id,
+            "message": progress.message
+        }
+    )
+    return db_task
+
+
+# --- Task Release Endpoint ---
+
+@app.post("/api/v1/tasks/{task_id}/release", response_model=schemas.Task, summary="Release task claim")
+def release_task(task_id: str, db: Session = Depends(get_db)):
+    """
+    Release a claimed task back to pending status.
+    """
+    db_task = crud.release_task(db, task_id=task_id)
+    if db_task is None:
+        raise HTTPException(status_code=404, detail="Task not found or not claimed")
+    return db_task

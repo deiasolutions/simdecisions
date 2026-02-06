@@ -67,6 +67,19 @@ def complete_task(db: Session, task_id: str, outcome: str = "success"):
         db.refresh(db_task)
     return db_task
 
+
+def release_task(db: Session, task_id: str):
+    """Release a claimed task back to pending status."""
+    db_task = get_task(db, task_id)
+    if db_task and db_task.status == "in_progress":
+        db_task.status = "pending"
+        db_task.assigned_to = None
+        db_task.claimed_at = None
+        db.commit()
+        db.refresh(db_task)
+        return db_task
+    return None
+
 def log_event(db: Session, event_type: str, actor: str, payload: dict):
     """Logs a generic event to the event ledger."""
     db_event = models.Event(
