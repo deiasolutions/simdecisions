@@ -37,3 +37,5 @@
 {"ts": "2026-02-05T16:00:00Z", "bee": "BEE-001", "event": "task_claimed", "task": "TASK-SETUP_FRONTEND", "msg": "Claimed task to scaffold Next.js frontend for Human Dashboard"}
 {"ts": "2026-02-05T16:10:00Z", "bee": "BEE-001", "event": "progress", "task": "TASK-SETUP_FRONTEND", "msg": "pnpm not available, using npm instead"}
 {"ts": "2026-02-05T16:15:00Z", "bee": "BEE-001", "event": "task_completed", "task": "TASK-SETUP_FRONTEND", "msg": "Frontend scaffolded successfully - Next.js 16.1.6 with TypeScript, Tailwind, App Router. Dev server verified working."}
+{"ts": "2026-02-05T17:00:00Z", "bee": "BEE-001", "event": "progress", "task": "review", "msg": "Reviewed simdecisions-engine DESIGN_SPEC.md - created 12 issues in Downloads"}
+{"ts": "2026-02-05T18:30:00Z", "bee": "BEE-001", "event": "task_created", "task": "TASK-HIVE_API_MVP", "msg": "Created task to scaffold Hive Control Plane API on Railway - HIGH priority, unblocks everything"}
